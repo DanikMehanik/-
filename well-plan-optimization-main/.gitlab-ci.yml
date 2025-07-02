@@ -1,0 +1,62 @@
+variables:
+  GIT_SSL_NO_VERIFY: "true"
+  RUN_TAG_SHELL: "gpt-app02.shell"
+  APP_RUN_DIR: "/opt/wpo-$CI_COMMIT_REF_SLUG"
+  APP_NAME: "wpo"
+  APP_DOMAIN: "wpo.grounddc.ru"
+  APP_URL_HOST: "$CI_COMMIT_REF_SLUG.$APP_DOMAIN"
+  APP_KEYCLOAK_PREFIX: "/auth"
+  APP_BUILD: "$CI_COMMIT_REF_SLUG+$CI_COMMIT_SHORT_SHA"
+  DOCKER_ADD_ARGS: "
+      --build-arg CI_REGISTRY_IMAGE=$CI_REGISTRY_IMAGE
+      --build-arg CI_COMMIT_REF_SLUG=$CI_COMMIT_REF_SLUG
+      --build-arg APP_NAME=$APP_NAME
+      --build-arg APP_BUILD=$APP_BUILD
+      "
+
+stages:
+  - package
+  - deploy
+
+workflow:
+  rules:
+    - if: $CI_COMMIT_REF_SLUG == "main"
+      variables:
+        DEPLOY_REF_SLUG: "main"
+
+dashboard:
+  stage: package
+  tags:
+    - $RUN_TAG_SHELL
+  rules:
+    - if: $CI_COMMIT_BRANCH || $CI_COMMIT_TAG =~ /^prod-.*/
+      changes:
+        - src/**/*
+        - pyproject.toml
+        - uv.lock
+        - Dockerfile
+      when: always
+    - when: never
+  script:
+    - docker build $DOCKER_ADD_ARGS -f Dockerfile -t $APP_NAME-dashboard:$DEPLOY_REF_SLUG .
+
+deploy all:
+  stage: deploy
+  tags:
+    - $RUN_TAG_SHELL
+  rules:
+    - if: $CI_COMMIT_BRANCH || $CI_COMMIT_TAG =~ /^prod-.*/
+      when: always
+    - when: never
+  script:
+    - mkdir -p $APP_RUN_DIR
+    - cp -f docker-compose.yml $APP_RUN_DIR/docker-compose.yml
+    - cd $APP_RUN_DIR
+    - echo "CI_COMMIT_REF_SLUG=$CI_COMMIT_REF_SLUG" > .env
+    - echo "DEPLOY_REF_SLUG=$DEPLOY_REF_SLUG" >> .env
+    - echo "APP_URL_HOST=$APP_URL_HOST" >> .env
+    - echo "APP_NAME=$APP_NAME" >> .env
+    - echo "APP_KEYCLOAK_PREFIX=$APP_KEYCLOAK_PREFIX" >> .env
+    - docker compose down
+    - docker compose up -d
+
