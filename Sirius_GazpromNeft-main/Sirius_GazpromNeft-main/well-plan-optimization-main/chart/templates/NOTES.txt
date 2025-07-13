@@ -1,0 +1,4 @@
+AppURL: "https://{{ .Values.applicationURL }}"
+AppVersion: "{{ .Chart.AppVersion }}"
+Project: "{{ .Chart.Annotations.project }}"
+Pipeline: "{{ .Chart.Annotations.pipeline }}"

@@ -1,0 +1,19 @@
+services:
+  dashboard:
+    image: ${APP_NAME}-dashboard:${DEPLOY_REF_SLUG}
+    restart: always
+#    ports:
+#      - 4200:4200
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.${APP_NAME}-${DEPLOY_REF_SLUG}-dashboard.entrypoints=https"
+      - "traefik.http.routers.${APP_NAME}-${DEPLOY_REF_SLUG}-dashboard.rule=Host(`${APP_URL_HOST}`)"
+      - "traefik.http.routers.${APP_NAME}-${DEPLOY_REF_SLUG}-dashboard.tls=true"
+      - "traefik.http.routers.${APP_NAME}-${DEPLOY_REF_SLUG}-dashboard.tls.certresolver=letsEncrypt"
+      - "traefik.http.services.${APP_NAME}-${DEPLOY_REF_SLUG}-dashboard-service.loadbalancer.server.port=8080"
+
+
+networks:
+  default:
+    name: gpty
+    external: true
