@@ -28,6 +28,7 @@ cache_profile_folder.mkdir(parents=True, exist_ok=True)
 
 
 def create_stacked_plot(df_monthly, title):
+    # Expects df_monthly with datetime columns
     months = df_monthly.columns.strftime('%Y-%m')
     base = df_monthly.loc["Добыча нефти база, тыс.т."]
     gtm = df_monthly.loc["Добыча нефти ВНС, тыс.т."]
@@ -71,14 +72,16 @@ def create_stacked_plot(df_monthly, title):
     return fig
 
 
+# --- Updated format_plan ---
 def format_plan(
     plan: Plan,
     plan_name: str = "Бизнес-План",
     add_constraints: bool = False,
 ):
+    # --- Yearly Calculations ---
     yearly_date_range = pd.date_range(
         plan.start_date,
-        end=plan.end_date,
+        end=plan.end_date, # Use plan's end_date for yearly range
         freq="YE",
     )
     yearly_columns = yearly_date_range.year
@@ -560,7 +563,6 @@ with st.sidebar.expander("🚫 Ограничения"):
 
 
 if st.sidebar.button("Расчет", use_container_width=True, type="primary"):
-    import time
     settings = st.session_state.settings
     if settings["wells_file"]:
         loader = ExcelWellLoader(
@@ -645,7 +647,6 @@ if st.sidebar.button("Расчет", use_container_width=True, type="primary"):
             production_profile=production_profile,
             constraints=st.session_state.constraints,
         )
-        start_time = time.perf_counter()
         st.session_state.plan = builder.compile(
             wells,
             manager=TeamManager(
@@ -654,11 +655,7 @@ if st.sidebar.button("Расчет", use_container_width=True, type="primary"):
             ),
             risk_strategy=ClusterRandomRiskStrategy(trigger_chance=0.0),
         )
-        elapsed_time = time.perf_counter() - start_time
-        iterations = 100
-        npv_value = st.session_state.plan.total_profit() if st.session_state.plan else None
 
-        base_start_time = time.perf_counter()
         st.session_state.base_plan = base_builder.compile(
             wells,
             manager=TeamManager(
@@ -668,7 +665,6 @@ if st.sidebar.button("Расчет", use_container_width=True, type="primary"):
             risk_strategy=ClusterRandomRiskStrategy(trigger_chance=0.0),
             keep_order=True,
         )
-        base_elapsed_time = time.perf_counter() - base_start_time
         
         viz = GantVisualizer(figsize=(30, 5))
         with CapturePlot() as buf:
@@ -678,13 +674,6 @@ if st.sidebar.button("Расчет", use_container_width=True, type="primary"):
         st.session_state.image = buf
         saver = ExcelPlanSaver("dummy_path.xlsx")
         st.session_state.excel = saver.get_excel_bytes(st.session_state.plan)
-
-        import pandas as pd
-        results_df = pd.DataFrame([
-            {"NPV": npv_value, "Итерации": iterations, "Время (сек)": base_elapsed_time}
-        ])
-        st.subheader("Результаты оптимизации")
-        st.dataframe(results_df, use_container_width=True)
 
     else:
         st.error("Пожалуйста загрузите файл с данными по вводу скважин")

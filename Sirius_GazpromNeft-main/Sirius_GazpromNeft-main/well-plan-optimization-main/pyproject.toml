@@ -5,7 +5,13 @@ description = "Создание и оптмизация планов бурен�
 authors = [
     {name = "Рахимзянов Руслан Маратович", email = "rrakhimzyanov@phoenixit.ru"},
 ]
-dependencies = ["pydantic>=2.10.5", "sqlalchemy>=2.0.37", "sqlmodel>=0.0.22", "loguru>=0.7.3"]
+dependencies = [
+    "pydantic>=2.10.5",
+ "sqlalchemy>=2.0.37",
+ "sqlmodel>=0.0.22",
+ "loguru>=0.7.3",
+ "notebook>=7.4.4",
+]
 requires-python = ">=3.11"
 license = {text = "MIT"}
 

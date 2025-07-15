@@ -1,7 +1,5 @@
-from typing import Optional, Literal
+from typing import Optional
 from datetime import datetime
-import random
-import math
 from loguru import logger
 from wellplan.core.plan import Plan, WellPlanContext
 from wellplan.core.well import Well
@@ -11,25 +9,7 @@ from wellplan.services.infrastructure import Infrastructure, SimpleInfrastructur
 from wellplan.services.team_manager import BaseTeamManager
 from wellplan.services.production import ProductionProfile, LinearProductionProfile
 from wellplan.services.constraint import ConstraintManager, Constraint
-from wellplan.services.optimization import SimulatedAnnealingPlanner
 
-
-class PlanBuilder:
-    def compile(
-            self,
-            wells: list[Well],
-            manager: BaseTeamManager,
-
-    ) -> Plan:
-        initial_plan = self._create_initial_plan(wells, manager)
-        optimizer = SimulatedAnnealingPlanner(
-            initial_temp=1000,
-            cooling_rate=0.95,
-            iterations=100
-        )
-
-        optimized_plan = optimizer.optimize(initial_plan, manager)
-        return optimized_plan
 
 class PlanBuilder:
     def __init__(
@@ -136,103 +116,10 @@ class PlanBuilder:
         if keep_order:
             return min((c for c in candidates), key=lambda x: x.well.init_entry_date)
         
-        if not candidates:
-            raise ValueError("No candidates provided")
-        return self._simulated_annealing_selection(candidates)
-
-    def _simulated_annealing_selection(
-        self, 
-        candidates: list[WellPlanContext],
-        initial_temp: float = 1000.0,
-        cooling_rate: float = 0.95,
-        min_temp: float = 1.0,
-        iterations_per_temp: int = 10
-    ) -> WellPlanContext:
-
-
-        valid_candidates = [c for c in candidates if c.cost is not None]
-        if not valid_candidates:
-            return candidates[0]
-
-        if len(valid_candidates) <= 3:
-            if random.random() < 0.6:
-                best_candidate = max(valid_candidates, key=lambda c: self._calculate_candidate_score(c))
-                logger.debug(f"SA algorithm (small set) selected best: {best_candidate.well.name}, cost: {best_candidate.cost}")
-                return best_candidate
-            else:
-                random_candidate = random.choice(valid_candidates)
-                logger.debug(f"SA algorithm (small set) selected random: {random_candidate.well.name}, cost: {random_candidate.cost}")
-                return random_candidate
-
-        current_candidate = random.choice(valid_candidates)
-        current_score = self._calculate_candidate_score(current_candidate)
-
-        best_candidate = current_candidate
-        best_score = current_score
-        
-        temp = initial_temp
-        
-        while temp > min_temp:
-            for _ in range(iterations_per_temp):
-                neighbor_candidate = self._get_neighbor_candidate(valid_candidates, current_candidate)
-                neighbor_score = self._calculate_candidate_score(neighbor_candidate)
-
-                if self._accept_solution(current_score, neighbor_score, temp):
-                    current_candidate = neighbor_candidate
-                    current_score = neighbor_score
-
-                    if current_score > best_score:
-                        best_candidate = current_candidate
-                        best_score = current_score
-
-            temp *= cooling_rate
-        
-        logger.debug(f"SA algorithm selected: {best_candidate.well.name}, cost: {best_candidate.cost}")
-        return best_candidate
-    
-    def _calculate_candidate_score(self, candidate: WellPlanContext) -> float:
-
-        base_score = candidate.cost or 0.0
-        penalty = candidate.metadata.get('drill_team_penalty', 0) if self.use_drill_team_penalty else 0
-        random_factor = random.uniform(0.95, 1.05)
-        time_factor = 1.0
-        if candidate.well.init_entry_date:
-            days_from_start = (candidate.well.init_entry_date - self.start).days
-            time_factor = max(0.8, 1.0 - days_from_start / 365.0)
-        return (base_score - penalty) * random_factor * time_factor
-    
-    def _get_neighbor_candidate(
-        self, 
-        candidates: list[WellPlanContext], 
-        current_candidate: WellPlanContext
-    ) -> WellPlanContext:
-
-        if random.random() < 0.7:
-            return random.choice(candidates)
-        else:
-            current_cost = current_candidate.cost or 0
-            cost_range = current_cost * 0.2
-            
-            similar_candidates = [
-                c for c in candidates 
-                if abs((c.cost or 0) - current_cost) <= cost_range
-            ]
-            
-            if similar_candidates:
-                return random.choice(similar_candidates)
-            else:
-                return random.choice(candidates)
-    
-    def _accept_solution(self, current_score: float, new_score: float, temp: float) -> bool:
-        if new_score > current_score:
-            return True
-
-        delta = new_score - current_score
-        if temp > 0:
-            probability = math.exp(delta / temp)
-            return random.random() < probability
-        
-        return False
+        return max(
+            (c for c in candidates if c.cost is not None),
+            key=lambda x: x.cost - (x.metadata.get('drill_team_penalty', 0) if self.use_drill_team_penalty else 0)
+        )
 
     def _is_cluster_finished(self, cluster: Optional[str]) -> bool:
         if cluster is None:
